@@ -15,5 +15,3 @@
 5. Start Command: `node server.js`
 6. Environment: Node
 7. Create Web Service → デプロイ完了
-
-アクセス例:
