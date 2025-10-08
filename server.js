@@ -30,7 +30,6 @@ app.get("/proxy", async (req,res)=>{
   if(!targetUrl) return res.send("URLを指定してね");
 
   try{
-    // 1分以内キャッシュなら返す
     if(cache.has(targetUrl)){
       const { html, timestamp } = cache.get(targetUrl);
       if(Date.now()-timestamp<60000) return res.send(html);
