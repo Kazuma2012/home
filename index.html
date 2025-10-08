@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>ホーム</title>
+<link rel="icon" href="https://upload.wikimedia.org/wikipedia/commons/1/19/Google_Classroom_Logo.svg" />
+<style>
+  body { font-family:sans-serif; margin:0; padding:0; display:flex; flex-direction:column; height:100vh; }
+  #landing { display:flex; justify-content:center; align-items:center; height:100vh; }
+  #landing button { padding:20px 40px; font-size:24px; border-radius:10px; border:none; background:#4CAF50; color:white; cursor:pointer; }
+  #landing button:hover { background:#45a049; }
+</style>
+</head>
+<body>
+<div id="landing">
+  <button onclick="launchApp()">アプリを起動</button>
+</div>
+
+<script>
+function launchApp() {
+  const appHTML = `
+    <div id="app">
+      <div id="toolbar">
+        <button class="toolbar-btn" onclick="goBack()">←戻る</button>
+        <button class="toolbar-btn" onclick="goForward()">→進む</button>
+        <button class="toolbar-btn" onclick="reloadPage()">🔄再読み込み</button>
+        <input id="url" placeholder="https://example.com">
+        <button class="toolbar-btn" onclick="loadBobURL()">表示</button>
+        <div id="spinner">⏳ 読み込み中...</div>
+      </div>
+      <iframe id="viewer" sandbox="allow-scripts allow-same-origin"></iframe>
+    </div>
+  `;
+
+  const appScript = `
+    const proxy = "/proxy?url=";
+    const historyStack = [];
+    let historyIndex = -1;
+
+    async function loadBobURL(url=null, pushHistory=true){
+      if(!url) url = document.getElementById("url").value;
+      if(!url) return alert("URLを入力してね");
+      document.getElementById("spinner").style.display = "inline";
+      try{
+        const res = await fetch(proxy + encodeURIComponent(url));
+        let html = await res.text();
+
+        const iframe = document.getElementById("viewer");
+        iframe.srcdoc = html;
+
+        iframe.onload = ()=>{
+          const doc = iframe.contentDocument || iframe.contentWindow.document;
+          const observer = new MutationObserver(()=>{
+            // aタグリンク
+            const links = doc.querySelectorAll('a[href^="http"]');
+            links.forEach(a=>a.onclick=e=>{ e.preventDefault(); loadBobURL(a.href); });
+
+            // フォーム
+            const forms = doc.querySelectorAll('form[action^="http"]');
+            forms.forEach(f=>f.onsubmit=e=>{ e.preventDefault(); loadBobURL(f.action); });
+
+            // 画像/iframe
+            const imgs = doc.querySelectorAll('img[src^="http"]');
+            imgs.forEach(i=>i.src=proxy+encodeURIComponent(i.src));
+            const iframes = doc.querySelectorAll('iframe[src^="http"]');
+            iframes.forEach(f=>f.src=proxy+encodeURIComponent(f.src));
+
+            // CSS内url()
+            const styles = Array.from(doc.querySelectorAll('link[rel="stylesheet"],style'));
+            styles.forEach(s=>{
+              if(s.href) s.href=proxy+encodeURIComponent(s.href);
+              if(s.textContent) s.textContent=s.textContent.replace(/url\\(["']?(http[^"')]+)["']?\\)/g,(m,u)=>\`url(\${proxy+encodeURIComponent(u)})\`);
+            });
+          });
+          observer.observe(doc.body,{ childList:true, subtree:true });
+        };
+
+        if(pushHistory){
+          historyStack.splice(historyIndex+1);
+          historyStack.push(url);
+          historyIndex++;
+        }
+        document.getElementById("url").value = url;
+      } catch(err){ alert("取得失敗: "+err); }
+      finally{ document.getElementById("spinner").style.display = "none"; }
+    }
+
+    function goBack(){ if(historyIndex>0){ historyIndex--; loadBobURL(historyStack[historyIndex],false); } }
+    function goForward(){ if(historyIndex<historyStack.length-1){ historyIndex++; loadBobURL(historyStack[historyIndex],false); } }
+    function reloadPage(){ if(historyIndex>=0){ loadBobURL(historyStack[historyIndex],false); } else { loadBobURL(); } }
+    document.getElementById("url").addEventListener("keypress", e=>{ if(e.key==="Enter") loadBobURL(); });
+  `;
+
+  const blob = new Blob([`
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="UTF-8">
+      <title>ホーム</title>
+      <link rel="icon" href="https://upload.wikimedia.org/wikipedia/commons/1/19/Google_Classroom_Logo.svg" />
+      <style>
+        html,body{margin:0;padding:0;height:100%;}
+        #app{position:relative;width:100%;height:100%;}
+        #toolbar{height:50px;padding:10px;background:#222;color:white;display:flex;gap:5px;align-items:center;box-sizing:border-box;}
+        #url{flex:1;padding:5px 10px;border-radius:5px;border:none;font-size:16px;}
+        button.toolbar-btn{padding:5px 10px;border-radius:5px;border:none;background:#4CAF50;color:white;cursor:pointer;font-size:14px;}
+        button.toolbar-btn:hover{background:#45a049;}
+        #spinner{display:none;margin-left:10px;}
+        #viewer{position:absolute;top:50px;left:0;right:0;bottom:0;border:none;width:100%;height:calc(100%-50px);}
+      </style>
+    </head>
+    <body>
+      ${appHTML}
+      <script>${appScript}<\/script>
+    </body>
+    </html>
+  `],{type:"text/html"});
+
+  const url = URL.createObjectURL(blob);
+  const win = window.open(url,"_blank");
+  setTimeout(()=>URL.revokeObjectURL(url),2000);
+}
+</script>
+</body>
+</html>
